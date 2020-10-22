@@ -1,7 +1,10 @@
 <template>
   <div id="app">
     <div class="master-upload-container">
-      <Simple>
+      <Simple
+        ref="upload"
+        :accept="accepts"
+      >
 
       </Simple>
     </div>
@@ -15,6 +18,14 @@ export default {
   name: 'app',
   components: {
     Simple
+  },
+  data () {
+    return {
+      accepts: '.jpg, .jpeg, .png',
+    }
+  },
+  methods: {
+    
   }
 }
 </script>
