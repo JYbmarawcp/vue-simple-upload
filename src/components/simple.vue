@@ -158,11 +158,20 @@ export default {
 
         const fileChunkList = this.createFileChunk(filesArr[i])
 
-        console.log(filesArr[i]);
         // 若不是恢复, 再进行hash计算
         if (filesArr[i].status !== 'resume') {
           this.status = Status.hash
+          // hash校验, 是否为秒传
+
+          console.log('handleUpload -> hash', filesArr[i])
         }
+
+        this.status = Status.uploading
+
+        // 检验重复
+        const verifyRes = await this.verifyUpload()
+        filesArr[i].status = fileStatus.uploading.code
+
 
         console.log(fileChunkList);
         console.log('handleUpload ->  this.chunkData', filesArr[i])
@@ -185,6 +194,10 @@ export default {
       }
       console.log('createFileChunk -> fileChunkList', fileChunkList)
       return fileChunkList
+    },
+    // 文件上传之前的校验: 校验文件是否已存在
+    verifyUpload() {
+      return true
     }
   },
   computed: {
