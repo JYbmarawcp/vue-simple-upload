@@ -49,7 +49,7 @@
 
 <script>
 
-
+const chunkSize = 10 * 1024 * 1024; // 切片大小
 // 所有文件状态
 const Status = {
   wait: 'wait',
@@ -139,18 +139,52 @@ export default {
       })
     },
     handleStart(rawFile) {
-      // 初始化部分自定义属性
+      // 对每个文件进行初始化自定义属性
       rawFile.status = fileStatus.wait.code;
       rawFile.chunkList = [];
       rawFile.uploadProgress = 0;
       rawFile.fakeUploadProgress = 0; // 假进度条，处理恢复上传后，进度条后移的问题
       rawFile.hashProgress = 0;
 
-      console.log(rawFile);
       this.uploadFiles.push(rawFile)
     },
     async handleUpload() {
-      console.log('handleUpload -> this.uploadFiles', this.uploadFiles);
+      console.log('handleUpload -> this.uploadFiles', this.uploadFiles)
+      if (!this.uploadFiles) return
+      this.status = Status.uploading
+      const filesArr = this.uploadFiles
+
+      for(let i = 0; i < filesArr.length; i++) {
+
+        const fileChunkList = this.createFileChunk(filesArr[i])
+
+        console.log(filesArr[i]);
+        // 若不是恢复, 再进行hash计算
+        if (filesArr[i].status !== 'resume') {
+          this.status = Status.hash
+        }
+
+        console.log(fileChunkList);
+        console.log('handleUpload ->  this.chunkData', filesArr[i])
+        await this.uploadChunks(filesArr[i])
+      }
+    },
+    // 将切片传输给服务端
+    async uploadChunks(data) {
+      return data
+    },
+    // 创建文件切片
+    createFileChunk(file, size = chunkSize) {
+      const fileChunkList = []
+      let count = 0
+      while(count < file.size) {
+        fileChunkList.push({
+          file: file.slice(count, count + size)
+        })
+        count += size
+      }
+      console.log('createFileChunk -> fileChunkList', fileChunkList)
+      return fileChunkList
     }
   },
   computed: {
