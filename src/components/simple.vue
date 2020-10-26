@@ -48,8 +48,12 @@
 </template>
 
 <script>
+import axios, { CancelToken } from 'axios'
+
+const instance = axios.create({})
 
 const chunkSize = 10 * 1024 * 1024; // 切片大小
+var fileIndex = 0 // 当前正在被遍历的文件下标
 // 所有文件状态
 const Status = {
   wait: 'wait',
@@ -105,7 +109,12 @@ export default {
     limit: {
       type: Number,
       default: 20
-    }
+    },
+    // 上传文件时携带的参数
+    uploadArguments: {
+      type: Object,
+      default: () => ({})
+    },
   },
   data () {
     return {
@@ -123,8 +132,7 @@ export default {
       if (!files) return
 
       // 重置文件下标
-      // fileIndex = 0
-      // console.log();
+      fileIndex = 0 // 重置文件下标
       // 判断文件选择的个数
       if (this.limit && files.length > this.limit) {
         return
@@ -154,14 +162,22 @@ export default {
       this.status = Status.uploading
       const filesArr = this.uploadFiles
 
+      // 对单个文件逐一上传
       for(let i = 0; i < filesArr.length; i++) {
-
+        fileIndex = i
         const fileChunkList = this.createFileChunk(filesArr[i])
 
         // 若不是恢复, 再进行hash计算
         if (filesArr[i].status !== 'resume') {
           this.status = Status.hash
           // hash校验, 是否为秒传
+          filesArr[i].hash = await this.calculateHash(fileChunkList)
+
+          // 若清空或者状态为等待, 则跳出循环
+          if (this.status === Status.wait) {
+            console.log('若清空或者状态为等待，则跳出循环');
+            break
+          }
 
           console.log('handleUpload -> hash', filesArr[i])
         }
@@ -169,7 +185,7 @@ export default {
         this.status = Status.uploading
 
         // 检验重复
-        const verifyRes = await this.verifyUpload()
+        const verifyRes = await this.verifyUpload(filesArr[i].name, filesArr[i].hash)
         filesArr[i].status = fileStatus.uploading.code
 
 
@@ -195,9 +211,43 @@ export default {
       console.log('createFileChunk -> fileChunkList', fileChunkList)
       return fileChunkList
     },
+    // 生成文件 hash(web-worker)
+    calculateHash(fileChunkList) {
+      console.log('calculateHash -> fileChunkList', fileChunkList)
+      return new Promise(resolve => {
+        this.worker = new Worker('./hash-worker.js')
+        this.worker.postMessage({ fileChunkList })
+        this.worker.onmessage = e => {
+          const { percentage, hash } = e.data
+          if (this.uploadFiles[fileIndex]) {
+            this.uploadFiles[fileIndex].hashProgress = Number(percentage.toFixed(0))
+            this.$set(this.uploadFiles, fileIndex, this.uploadFiles[fileIndex])
+          }
+          if (hash) {
+            resolve(hash)
+          }
+        }
+      })
+    },
     // 文件上传之前的校验: 校验文件是否已存在
-    verifyUpload() {
-      return true
+    verifyUpload(fileName, fileHash) {
+      return new Promise(resolve => {
+        const obj = {
+          md5: fileHash,
+          fileName,
+          ...this.uploadArguments
+        }
+        //
+        instance
+          .get('fileChunk/presence', { params: obj })
+          .then(res => {
+            console.log('verifyUpload -> res', res)
+            resolve(res.data)
+          })
+          .catch(err => {
+            console.log('verifyUpload -> err', err)
+          })
+      })
     }
   },
   computed: {
