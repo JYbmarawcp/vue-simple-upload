@@ -52,7 +52,7 @@ import axios, { CancelToken } from 'axios'
 
 const instance = axios.create({})
 
-const chunkSize = 10 * 1024 * 1024; // 切片大小
+let chunkSize = 10 * 1024 * 1024; // 切片大小
 var fileIndex = 0 // 当前正在被遍历的文件下标
 // 所有文件状态
 const Status = {
@@ -110,6 +110,15 @@ export default {
       type: Number,
       default: 20
     },
+    baseUrl: {
+      type: String,
+      default: ''
+    },
+    // 切片大小
+    chunkSize: {
+      type: Number,
+      default: 10 * 1024 * 1024
+    },
     // 上传文件时携带的参数
     uploadArguments: {
       type: Object,
@@ -122,10 +131,19 @@ export default {
       uploadFiles: [],
     }
   },
-  created () {
-    
+  created() {
+    this.setAxios()
   },
   methods: {
+    setAxios() {
+      // 设置baseUrl
+      if (this.baseUrl) {
+        instance.defaults.baseURL = this.baseUrl
+      }
+
+      // 设置切片大小
+      chunkSize = this.chunkSize;
+    },
     handleFileChange(e) {
       const files = e.target.files
       console.log('handleFileChange -> file', files)

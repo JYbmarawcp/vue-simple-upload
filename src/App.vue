@@ -4,6 +4,7 @@
       <Simple
         ref="upload"
         :accept="accepts"
+        :base-url="baseUrl"
       >
 
       </Simple>
@@ -26,6 +27,11 @@ export default {
   },
   methods: {
     
+  },
+  computed: {
+    baseUrl() {
+      return 'http://localhost:3000/';
+    }
   }
 }
 </script>
