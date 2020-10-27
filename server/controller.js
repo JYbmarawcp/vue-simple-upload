@@ -1,3 +1,4 @@
+const multiparty = require('multiparty')
 const path = require('path')
 const fse = require('fs-extra');
 const url = require('url')
@@ -37,6 +38,54 @@ module.exports = class {
       })
     }
   };
+  // 处理切片
+  async handleFileChunk(req, res) {
+    const multipart = new multiparty.Form()
+    // multipart插件自动帮我们完成上传文件操作, 我们只需要设置好路径就行
+    // fields是一个对象, 存储FormData里的字段信息
+    // files存储的是文件信息
+    multipart.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error(err);
+        res.status = 500
+        res.end('process file chunk failed')
+        return
+      }
+      const [chunk] = files.file
+      const [hash] = fields.md5
+      const [chunkId] = fields.chunkId
+      console.log('handleFileChunk -> chunkId', chunkId)
+      const chunkDIr = path.resolve(UPLOAD_DIR, hash)
+
+      // 切片目录不存在, 创建切片目录
+      if (!fse.existsSync(chunkDIr)) {
+        await fse.mkdirs(chunkDIr)
+      }
+
+      // 文件存在直接返回
+      if (fse.existsSync(path.resolve(chunkDIr, chunkId))) {
+        return rendAjax(res, {
+          code: 200,
+          message: '文件已存在'
+        })
+      }
+
+      // fs-extra 专用方法，类似 fs.rename 并且跨平台
+      // fs-extra 的 rename 方法 windows 平台会有权限问题
+      // https://github.com/meteor/meteor/issues/7852#issuecomment-255767835
+      try {
+        await fse.move(chunk.path, path.resolve(chunkDIr, chunkId))
+      } catch (error) {
+        console.log('handleFileChunk -> error', error)
+      }
+
+      rendAjax(res, {
+        code: 200,
+        message: '切片上传成功'
+      })
+      return
+    })
+  }
 }
 
 const rendAjax = (res, obj) => {

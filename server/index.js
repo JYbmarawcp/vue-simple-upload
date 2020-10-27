@@ -19,16 +19,13 @@ server.on('request', async (req, res) => {
     return;
   }
 
-  if (req.url === '/fileChunk/merge') {
-    await controller.handleMerge(req, res);
-    return;
-  }
-
   if (req.url === '/fileChunk') {
     await controller.handleFileChunk(req, res);
   }
-  if (req.url === '/') {
-    res.end('Welcome');
+
+  if (req.url === '/fileChunk/merge') {
+    await controller.handleMerge(req, res);
+    return;
   }
 });
 

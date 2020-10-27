@@ -127,8 +127,9 @@ export default {
   },
   data () {
     return {
-      status: Status.wait,
+      status: Status.wait, // 默认状态
       uploadFiles: [],
+      tempThreads: 3,
     }
   },
   created() {
@@ -183,6 +184,7 @@ export default {
       // 对单个文件逐一上传
       for(let i = 0; i < filesArr.length; i++) {
         fileIndex = i
+        // 文件切片
         const fileChunkList = this.createFileChunk(filesArr[i])
 
         // 若不是恢复, 再进行hash计算
@@ -204,17 +206,99 @@ export default {
 
         // 检验重复
         const verifyRes = await this.verifyUpload(filesArr[i].name, filesArr[i].hash)
-        filesArr[i].status = fileStatus.uploading.code
+        if (verifyRes.data.presence) {
+          console.log('进入1', verifyRes);
+          filesArr[i].status = fileStatus.secondPass.code
+          filesArr[i].uploadProgress = 100
+          // 判断是否都已经上传
+          this.isAllStatus()
+        } else {
+          console.log('开始上传文件=======>', filesArr[i].name)
+          filesArr[i].status = fileStatus.uploading.code
 
+          // const getChunkStorage = this.getChunkStorage(filesArr[i].hash)
+          filesArr[i].fileHash = filesArr[i].hash // 文件的hash, 合并时使用
+          // 自定义chunkList
+          filesArr[i].chunkList = fileChunkList.map(({ file }, index) => ({
+            fileHash: filesArr[i].hash,
+            fileName: filesArr[i].name,
+            index,
+            hash: filesArr[i].hash + '-' + index,
+            chunk: file,
+            size: file.size,
+            // uploaded: // 标识: 是否已经完成上传
+            progress: 0,
+            status: 'success' // 上传状态, 用作进度状态显示
+          }))
 
-        console.log(fileChunkList);
-        console.log('handleUpload ->  this.chunkData', filesArr[i])
-        await this.uploadChunks(filesArr[i])
+          this.$set(filesArr, i, filesArr[i])
+
+          console.log('handleUpload ->  this.chunkData', filesArr[i])
+          await this.uploadChunks(filesArr[i])
+        }
       }
     },
     // 将切片传输给服务端
     async uploadChunks(data) {
-      return data
+      console.log('uploadChunks -> data', data)
+      let chunkData = data.chunkList
+      const requestDataList = chunkData.filter(({ uploaded }) => !uploaded)
+        .map(({ fileHash, chunk, fileName, index}) => {
+          const formData = new FormData()
+          formData.append('md5', fileHash)
+          formData.append('file', chunk)
+          formData.append('chunkId', index) // 文件名使用切片的下标
+          return { formData, index, fileName }
+        })
+      
+      console.log('uploadChunks -> requestDataList', requestDataList)
+
+      try {
+        const ret = await this.sendRequest(requestDataList, chunkData)
+      } catch (error) {
+        // 上传有被reject的
+        this.$message.error('亲 上传失败了, 考虑重试下呦' + error)
+        return
+      }
+    },
+    // 并发处理
+    sendRequest(froms, chunkData) {
+      console.log('sendRequest -> forms', froms)
+      console.log('sendRequest -> chunkData', chunkData)
+      let finished = 0
+      const total = froms.length
+      const self = this
+      const retryArr = [] // 数组存储每个文件hash请求的重试次数, 就是第0个文件切片报错1次
+
+      return new Promise((resolve, reject) => {
+        const handler = () => {
+          console.log('handler -> forms', froms)
+          if (froms.length) {
+            // 出栈
+            const formInfo = froms.shift()
+
+            const formData = formInfo.formData
+            const index = formInfo.index
+
+            instance
+              .post('fileChunk', formData)
+              .then(res => {
+                console.log('handler -> res', res)
+                // 更改状态
+                chunkData[index].uploaded = true
+                chunkData[index].status = 'success'
+
+                finished++
+                handler()
+              })
+          }
+        }
+
+        // for循环控制并发的初始并发数, 然后在handler函数里调用自己
+        for (let i = 0; i < this.tempThreads; i++) {
+          handler()
+        }
+      })
     },
     // 创建文件切片
     createFileChunk(file, size = chunkSize) {
@@ -266,6 +350,15 @@ export default {
             console.log('verifyUpload -> err', err)
           })
       })
+    },
+    isAllStatus() {
+      const isAllSuccess = this.uploadFiles.every(item => 
+        ['success', 'secondPass', 'error'].includes(item.status))
+      console.log('mergeRequest -> isAllSuccess', isAllSuccess)
+      if (isAllSuccess) {
+        this.status = Status.done
+        this.$emit('success')
+      }
     }
   },
   computed: {
