@@ -1,7 +1,7 @@
 const multiparty = require('multiparty')
 const path = require('path')
 const fse = require('fs-extra');
-const url = require('url')
+const url = require('url');
 
 // 提取后缀名
 const extractExt = (filename) =>
@@ -9,6 +9,43 @@ const extractExt = (filename) =>
 
 // 大文件存储目录
 const UPLOAD_DIR = path.resolve(__dirname, '..', 'target');
+
+const pipeStream = (path, writeStream) =>
+  new Promise(resolve => {
+    const readStream = fse.createReadStream(path)
+    readStream.on('end', () => {
+      // 同步删除文件
+      fse.unlinkSync(path)
+      resolve()
+    })
+    readStream.pipe(writeStream)
+  })
+  
+// 合并切片
+/**
+ * @param {*} filePath 文件目录
+ * @param {*} fileHash md5
+ * @param {*} size 切片的个数
+ */
+const mergeFileChunk = async (filePath, fileHash, size) => {
+  const chunkDIr = path.resolve(UPLOAD_DIR, fileHash)
+  const chunkPaths = await fse.readdir(chunkDIr)
+  // 根据切片下标进行排序，直接读取可能会错乱 
+  chunkPaths.sort((a, b) => Number(a) - Number(b))
+  await Promise.all(
+    chunkPaths.map((chunkPaths, index) => {
+      pipeStream(
+        path.resolve(chunkDIr, chunkPaths),
+        // 指定位置创建可写流
+        fse.createWriteStream(filePath, {
+          start: index * 5 * 10 * 1024 * 1024
+        })
+      )
+    })
+  );
+  // 合并后删除保存切片的目录
+  fse.rmdirSync(chunkDIr)
+}
 
 module.exports = class {
   // 验证是否已上传/已上传切片下标
@@ -85,8 +122,32 @@ module.exports = class {
       })
     })
   }
+  // 合并切片
+  async handleMerge(req, res) {
+    const data = await resolvePost(req)
+    const { md5, fileName, fileChunkNum } = data
+    const ext = extractExt(fileName)
+    const filePath = path.resolve(UPLOAD_DIR, `${md5}${ext}`)
+    await mergeFileChunk(filePath, md5, fileChunkNum)
+    return rendAjax(res, {
+      code: 200,
+      message: '合并成功'
+    })
+  }
 }
 
 const rendAjax = (res, obj) => {
   res.end(JSON.stringify(obj))
 }
+
+const resolvePost = req =>
+  new Promise(resolve => {
+    let chunk = ''
+    req.on('data', data => {
+      chunk += data
+      console.log('chunk', chunk);
+    })
+    req.on('end', () => {
+      resolve(JSON.parse(chunk))
+    })
+  })

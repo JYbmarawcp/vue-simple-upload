@@ -42,8 +42,9 @@
     </div>
 
     <div class="file-list">
-
+      
     </div>
+    <slot name="tip"></slot>
   </div>
 </template>
 
@@ -266,7 +267,17 @@ export default {
       }
 
       //合并切片
-      
+      const isUpload = chunkData.some(item => item.uploading === false)
+      if (isUpload) {
+        alert('存在失败的切片')
+      } else {
+        // 执行合并
+        try {
+          await this.mergeRequest(data)
+        } catch (error) {
+          console.error(error)
+        }
+      }
     },
     // 并发处理
     sendRequest(froms, chunkData) {
@@ -296,7 +307,7 @@ export default {
                 chunkData[index].uploaded = true
                 chunkData[index].status = 'success'
                 // 存储已上传的切片下标
-                this.addChunkStorage(chunkData[index].fileHash, index)
+                addChunkStorage(chunkData[index].fileHash, index)
 
                 finished++
                 handler()
@@ -321,7 +332,7 @@ export default {
                 // 重试3次
                 if (retryArr[index] >= chunkRetry) {
                   console.warn('重试失败 ---> handler -> retryArr', retryArr, chunkData[index].hash);
-                  console.log('重试失败', retryArr);
+                  return reject('重试失败', retryArr);
                 }
 
                 console.log('handler -> retryArr[finished]', `${chunkData[index].hash}--进行第${retryArr[index]}'次重试'`)
@@ -343,6 +354,24 @@ export default {
         for (let i = 0; i < this.tempThreads; i++) {
           console.log(111);
           handler()
+        }
+      })
+    },
+    // 通知服务器合并切片
+    mergeRequest(data) {
+      const obj = {
+        md5: data.fileHash,
+        fileName: data.name,
+        fileChunkNun: data.chunkList.length,
+        ...this.uploadArguments
+      }
+
+      instance.post('fileChunk/merge', obj, {
+        timeout: 0
+      }).then(res => {
+        // 清除storage
+        if (res.data.code === 200) {
+          console.log('mergeRequest -> data', data);
         }
       })
     },
@@ -416,6 +445,12 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.simpel-upload-container {
+  border: 1px solid #d2d2d2;
+  border-radius: 4px;
+  background-color: #fff;
+  padding: 10px;
+  margin-bottom: 20px;
   .total-progress {
     margin-bottom: 15px;
     .btns {
@@ -432,4 +467,12 @@ export default {
       }
     }
   }
+
+  .upload-tip {
+    font-size: 12px;
+    color: #606266;
+    margin-top: 7px;
+  }
+}
+
 </style>
