@@ -48,6 +48,7 @@
 </template>
 
 <script>
+import { addChunkStorage, getChunkStorage, clearLocalStorage } from '@/utils/localstorage'
 import axios, { CancelToken } from 'axios'
 
 const instance = axios.create({})
@@ -253,13 +254,19 @@ export default {
       
       console.log('uploadChunks -> requestDataList', requestDataList)
 
+      // 并发上传
       try {
         const ret = await this.sendRequest(requestDataList, chunkData)
+        console.log('uploadChunks -> chunkData', chunkData)
+        console.log('ret', ret)
       } catch (error) {
         // 上传有被reject的
         this.$message.error('亲 上传失败了, 考虑重试下呦' + error)
         return
       }
+
+      //合并切片
+      
     },
     // 并发处理
     sendRequest(froms, chunkData) {
@@ -269,6 +276,7 @@ export default {
       const total = froms.length
       const self = this
       const retryArr = [] // 数组存储每个文件hash请求的重试次数, 就是第0个文件切片报错1次
+      const chunkRetry = 3 // 重试限制次数(3次)
 
       return new Promise((resolve, reject) => {
         const handler = () => {
@@ -287,15 +295,53 @@ export default {
                 // 更改状态
                 chunkData[index].uploaded = true
                 chunkData[index].status = 'success'
+                // 存储已上传的切片下标
+                this.addChunkStorage(chunkData[index].fileHash, index)
 
                 finished++
                 handler()
               })
+              .catch((e) => {
+                // 若状态为暂停或等待, 则禁止重试
+                console.log('handler -> this.status', this.status)
+                if ([Status.pause, Status.wait].includes(this.status)) return
+
+                console.warn('出现错误', e)
+                console.log('handler -> retryArr', retryArr)
+                if (typeof retryArr[index] !== 'number') {
+                  retryArr[index] = 0
+                }
+
+                // 更新状态
+                chunkData[index].status = 'warning'
+
+                // 累加错误次数
+                retryArr[index]++
+
+                // 重试3次
+                if (retryArr[index] >= chunkRetry) {
+                  console.warn('重试失败 ---> handler -> retryArr', retryArr, chunkData[index].hash);
+                  console.log('重试失败', retryArr);
+                }
+
+                console.log('handler -> retryArr[finished]', `${chunkData[index].hash}--进行第${retryArr[index]}'次重试'`)
+                console.log(retryArr)
+
+                this.tempThreads++; // 释放当前占用的通道 ？？？
+
+                // 将失败的重新加入队列
+                froms.push(formInfo)
+                handler()
+              })
+          }
+          if (finished >= total) {
+            resolve('done')
           }
         }
 
         // for循环控制并发的初始并发数, 然后在handler函数里调用自己
         for (let i = 0; i < this.tempThreads; i++) {
+          console.log(111);
           handler()
         }
       })

@@ -4,7 +4,7 @@ const fse = require('fs-extra');
 const url = require('url')
 
 // 提取后缀名
-const extractExt = filename =>
+const extractExt = (filename) =>
   filename.slice(filename.lastIndexOf('.'), filename.length)
 
 // 大文件存储目录
@@ -14,8 +14,8 @@ module.exports = class {
   // 验证是否已上传/已上传切片下标
   async handleVerifyUpload(req, res) {
     var data = url.parse(req.url, true)
-    const { md5, filename } = data.query
-    const ext = extractExt(filename)
+    const { md5, fileName } = data.query
+    const ext = extractExt(fileName)
     const filePath = path.resolve(UPLOAD_DIR, `${md5}${ext}`)
     // existsSync以同步的方法检测目录是否存在
     if (fse.existsSync(filePath)) {
@@ -61,7 +61,7 @@ module.exports = class {
       if (!fse.existsSync(chunkDIr)) {
         await fse.mkdirs(chunkDIr)
       }
-
+      
       // 文件存在直接返回
       if (fse.existsSync(path.resolve(chunkDIr, chunkId))) {
         return rendAjax(res, {
@@ -79,11 +79,10 @@ module.exports = class {
         console.log('handleFileChunk -> error', error)
       }
 
-      rendAjax(res, {
+      return rendAjax(res, {
         code: 200,
         message: '切片上传成功'
       })
-      return
     })
   }
 }

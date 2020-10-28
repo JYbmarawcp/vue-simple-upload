@@ -30,7 +30,7 @@ export default {
   },
   computed: {
     baseUrl() {
-      return 'http://localhost:3000/';
+      return 'http://localhost:3003/';
     }
   }
 }
