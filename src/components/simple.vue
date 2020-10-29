@@ -17,16 +17,16 @@
             />
           </el-button>
           <el-button 
-            :disabled="changeDisabled" 
+            :disabled="uploadDisabled" 
             @click="handleUpload"
             icon="el-icon-upload"
           >上传</el-button>
-          <!-- <el-button 
+          <el-button 
             :disabled="pauseDisabled" 
             @click="handlePause"
             icon="el-icon-video-pause"
           >暂停</el-button>
-          <el-button 
+          <!-- <el-button 
             :disabled="resumeDisabled" 
             @click="handleResume"
             icon="el-icon-video-play"
@@ -42,7 +42,56 @@
     </div>
 
     <div class="file-list">
-      
+      <el-collapse v-if="uploadFiles.length" accordion>
+        <el-collapse-item v-for="(item, index) in uploadFiles" :key="index">
+          <template slot="title">
+            <div class="progress-box">
+              <div class="list-item">
+                <div class="item-name">
+                  <span>{{ index + 1 }}: 名称: {{ item.name }}</span>
+                </div>
+                <div class="item-size">
+                  大小: {{ $utils.formatByte(item.size) }}
+                </div>
+                <div v-if="item.hashProgress !== 100" class="item-progress">
+                  <span>{{ status === 'wait' ? '准备读取文件' : '正在读取文件'}}</span>
+                  <el-progress :percentage="item.hashProgress" />
+                </div>
+                <div v-else class="item-progress">
+                  <span>文件进度</span>
+                  <el-progress :percentage="item.hashProgress" />
+                </div>
+                <div class="item-status">
+                  {{ item.status }}
+                </div>
+              </div>
+            </div>
+          </template>
+          <div class="item-chunk-box">
+            <el-table :data="item.chunkList" border max-height="300">
+              <el-table-column prop="index" label="#" align="center" />
+              <el-table-column prop="hash" label="切片md5" align="center" show-overflow-tooltip />
+              <el-table-column label="大小" align="center" width="120">
+                <template v-slot="{ row }">
+                  {{ $utils.formatByte(row.size) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="uploaded" label="是否完成" align="center">
+                <template v-slot="{ row }">
+                  {{ row.uploaded ? '完成' : '进行中' }}
+                </template>
+              </el-table-column>
+
+              <el-table-column label="进度" align="center">
+                <template v-slot="{ row }">
+                  <!-- <el-progress v-if="!row.status || row" /> -->
+                  <el-progress :percentage="row.progress" :status="row.status" />
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
     </div>
     <slot name="tip"></slot>
   </div>
@@ -50,6 +99,7 @@
 
 <script>
 import { addChunkStorage, getChunkStorage, clearLocalStorage } from '@/utils/localstorage'
+import { formatByte } from '@/utils/common'
 import axios, { CancelToken } from 'axios'
 
 const instance = axios.create({})
@@ -132,6 +182,7 @@ export default {
       status: Status.wait, // 默认状态
       uploadFiles: [],
       tempThreads: 3,
+      cancels: [], // 存储要取消的请求
     }
   },
   created() {
@@ -447,11 +498,25 @@ export default {
         this.status = Status.done
         this.$emit('success')
       }
-    }
+    },
+    // 暂停上传
+    handlePause() {
+      this.status = Status.pause
+      if (this.uploadFiles.length) {
+        console.log('handlePause -> currentFile')
+      }
+    },
+    // 恢复上传
   },
   computed: {
     changeDisabled() {
       return false
+    },
+    uploadDisabled() {
+      return !this.uploadFiles.length
+    },
+    pauseDisabled() {
+      return [Status.wait, Status.hash, Status.pause, Status.done].includes(this.status)
     },
   }
 }
@@ -477,6 +542,39 @@ export default {
         opacity: 0;
         width: 96px;
         height: 28px;
+      }
+    }
+  }
+
+  .file-list {
+    .progress-box {
+      width: 100%;
+
+      .list-item {
+        padding: 8px 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        line-height: 25px;
+        position: relative;
+
+        div {
+          flex: 1;
+        }
+        .item-name {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          margin-right: 6px;
+        }
+        .item-progress {
+          flex: 0 0 60%;
+        }
+        .item-status {
+          flex: 0 0 10%;
+          text-align: center;
+          text-align: left;
+        }
       }
     }
   }

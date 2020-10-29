@@ -4,7 +4,10 @@ import App from './App.vue'
 import store from './store'
 import './plugins/element.js'
 
+import global from './utils/global'
+
 Vue.config.productionTip = false
+Vue.use(global)
 
 new Vue({
   store,
