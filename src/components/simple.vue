@@ -352,7 +352,6 @@ export default {
 
         // for循环控制并发的初始并发数, 然后在handler函数里调用自己
         for (let i = 0; i < this.tempThreads; i++) {
-          console.log(111);
           handler()
         }
       })
@@ -362,7 +361,7 @@ export default {
       const obj = {
         md5: data.fileHash,
         fileName: data.name,
-        fileChunkNun: data.chunkList.length,
+        fileChunkNum: data.chunkList.length,
         ...this.uploadArguments
       }
 
@@ -371,8 +370,22 @@ export default {
       }).then(res => {
         // 清除storage
         if (res.data.code === 200) {
-          console.log('mergeRequest -> data', data);
+          data.status = fileStatus.success.code
+          console.log('mergeRequest -> data', data)
+          console.log('上传的chunk', localStorage.getItem(data.fileHash))
+          clearLocalStorage(data.fileHash)
+          // 判断是否所有都成功上传
+          this.isAllStatus()
+
+        } else {
+          // 文件块数量不对, 清楚缓存
+          clearLocalStorage(data.fileHash)
+          data.status = fileStatus.error.code
+          this.status = Status.wait
         }
+      }).catch(error => {
+        console.log('mergeRequest -> err', error);
+        data.status = fileStatus.error
       })
     },
     // 创建文件切片

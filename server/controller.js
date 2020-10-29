@@ -28,23 +28,23 @@ const pipeStream = (path, writeStream) =>
  * @param {*} size 切片的个数
  */
 const mergeFileChunk = async (filePath, fileHash, size) => {
-  const chunkDIr = path.resolve(UPLOAD_DIR, fileHash)
-  const chunkPaths = await fse.readdir(chunkDIr)
+  const chunkDir = path.resolve(UPLOAD_DIR, fileHash)
+  const chunkPaths = await fse.readdir(chunkDir)
   // 根据切片下标进行排序，直接读取可能会错乱 
   chunkPaths.sort((a, b) => Number(a) - Number(b))
   await Promise.all(
-    chunkPaths.map((chunkPaths, index) => {
+    chunkPaths.map((chunkPaths, index) => 
       pipeStream(
-        path.resolve(chunkDIr, chunkPaths),
+        path.resolve(chunkDir, chunkPaths),
         // 指定位置创建可写流
         fse.createWriteStream(filePath, {
           start: index * 5 * 10 * 1024 * 1024
         })
       )
-    })
+    )
   );
   // 合并后删除保存切片的目录
-  fse.rmdirSync(chunkDIr)
+  fse.rmdirSync(chunkDir)
 }
 
 module.exports = class {
@@ -92,15 +92,15 @@ module.exports = class {
       const [hash] = fields.md5
       const [chunkId] = fields.chunkId
       console.log('handleFileChunk -> chunkId', chunkId)
-      const chunkDIr = path.resolve(UPLOAD_DIR, hash)
+      const chunkDir = path.resolve(UPLOAD_DIR, hash)
 
       // 切片目录不存在, 创建切片目录
-      if (!fse.existsSync(chunkDIr)) {
-        await fse.mkdirs(chunkDIr)
+      if (!fse.existsSync(chunkDir)) {
+        await fse.mkdirs(chunkDir)
       }
       
       // 文件存在直接返回
-      if (fse.existsSync(path.resolve(chunkDIr, chunkId))) {
+      if (fse.existsSync(path.resolve(chunkDir, chunkId))) {
         return rendAjax(res, {
           code: 200,
           message: '文件已存在'
@@ -111,7 +111,7 @@ module.exports = class {
       // fs-extra 的 rename 方法 windows 平台会有权限问题
       // https://github.com/meteor/meteor/issues/7852#issuecomment-255767835
       try {
-        await fse.move(chunk.path, path.resolve(chunkDIr, chunkId))
+        await fse.move(chunk.path, path.resolve(chunkDir, chunkId))
       } catch (error) {
         console.log('handleFileChunk -> error', error)
       }
