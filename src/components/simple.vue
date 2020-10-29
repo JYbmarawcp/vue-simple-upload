@@ -30,12 +30,12 @@
             :disabled="resumeDisabled" 
             @click="handleResume"
             icon="el-icon-video-play"
-          >恢复</el-button>
+          >恢复</el-button> -->
           <el-button 
             :disabled="clearDisabled" 
             @click="clearFiles"
             icon="el-icon-delete"
-          >清空</el-button> -->
+          >清空</el-button>
         </el-button-group>
         <slot name="header"></slot>
       </div>
@@ -54,7 +54,7 @@
                   大小: {{ $utils.formatByte(item.size) }}
                 </div>
                 <div v-if="item.hashProgress !== 100" class="item-progress">
-                  <span>{{ status === 'wait' ? '准备读取文件' : '正在读取文件'}}</span>
+                  <span>{{ status === 'wait' ? '准备读取文件' : '正在读取文件'}}：</span>
                   <el-progress :percentage="item.hashProgress" />
                 </div>
                 <div v-else class="item-progress">
@@ -62,7 +62,7 @@
                   <el-progress :percentage="item.hashProgress" />
                 </div>
                 <div class="item-status">
-                  {{ item.status }}
+                  {{ item.status | fileStatus }}
                 </div>
               </div>
             </div>
@@ -148,6 +148,12 @@ const fileStatus = {
 }
 
 export default {
+  name: 'SimpleUploaderContainer',
+  filters: {
+    fileStatus(status) {
+      return fileStatus[status].name
+    }
+  },
   props: {
     accept: {
       type: String,
@@ -181,12 +187,16 @@ export default {
     return {
       status: Status.wait, // 默认状态
       uploadFiles: [],
+      worker: null, // web worker
       tempThreads: 3,
       cancels: [], // 存储要取消的请求
     }
   },
   created() {
     this.setAxios()
+  },
+  destroyed () {
+    this.clearFiles()
   },
   methods: {
     setAxios() {
@@ -507,6 +517,18 @@ export default {
       }
     },
     // 恢复上传
+
+    // 清空文件
+    clearFiles() {
+      console.log('清空文件');
+      fileIndex = 0
+      this.handlePause()
+
+      this.worker && this.worker.terminate() // terminate立即终止Worker的行为
+      this.status = Status.wait
+      // 重置data所有数据
+      Object.assign(this.$data, this.$options.data())
+    }
   },
   computed: {
     changeDisabled() {
@@ -518,6 +540,9 @@ export default {
     pauseDisabled() {
       return [Status.wait, Status.hash, Status.pause, Status.done].includes(this.status)
     },
+    clearDisabled() {
+      return !this.uploadFiles.length
+    }
   }
 }
 </script>
@@ -567,6 +592,9 @@ export default {
           white-space: nowrap;
           margin-right: 6px;
         }
+        .item-size {
+          flex: 0 0 10%;
+        }
         .item-progress {
           flex: 0 0 60%;
         }
@@ -579,11 +607,14 @@ export default {
     }
   }
 
+  .el-progress {
+    width: 80%;
+    display: inline-block;
+  }
   .upload-tip {
     font-size: 12px;
     color: #606266;
     margin-top: 7px;
   }
 }
-
 </style>
