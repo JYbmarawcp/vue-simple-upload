@@ -59,9 +59,10 @@
                 </div>
                 <div v-else class="item-progress">
                   <span>文件进度</span>
-                  <el-progress :percentage="item.hashProgress" />
+                  <el-progress :percentage="item.uploadProgress" />
                 </div>
                 <div class="item-status">
+                  <i :class="fileStatuIcon(item.status)"></i>
                   {{ item.status | fileStatus }}
                 </div>
               </div>
@@ -84,8 +85,10 @@
 
               <el-table-column label="进度" align="center">
                 <template v-slot="{ row }">
-                  <!-- <el-progress v-if="!row.status || row" /> -->
-                  <el-progress :percentage="row.progress" :status="row.status" />
+                  <el-progress v-if="!row.status || row.status === 'wait'" 
+                    :percentage="row.progress" 
+                  />
+                  <el-progress v-else :percentage="row.progress" :status="row.status" />
                 </template>
               </el-table-column>
             </el-table>
@@ -248,6 +251,11 @@ export default {
       // 对单个文件逐一上传
       for(let i = 0; i < filesArr.length; i++) {
         fileIndex = i
+        if (['secondPass', 'success', 'error'].includes(filesArr[i].status)) {
+          console.log('跳过已经上传成功或已秒传的或失败的file')
+          continue;
+        }
+
         // 文件切片
         const fileChunkList = this.createFileChunk(filesArr[i])
 
@@ -280,7 +288,7 @@ export default {
           console.log('开始上传文件=======>', filesArr[i].name)
           filesArr[i].status = fileStatus.uploading.code
 
-          // const getChunkStorage = this.getChunkStorage(filesArr[i].hash)
+          const chunkStorage = getChunkStorage(filesArr[i].hash)
           filesArr[i].fileHash = filesArr[i].hash // 文件的hash, 合并时使用
           // 自定义chunkList
           filesArr[i].chunkList = fileChunkList.map(({ file }, index) => ({
@@ -290,9 +298,9 @@ export default {
             hash: filesArr[i].hash + '-' + index,
             chunk: file,
             size: file.size,
-            // uploaded: // 标识: 是否已经完成上传
-            progress: 0,
-            status: 'success' // 上传状态, 用作进度状态显示
+            uploaded: chunkStorage && chunkStorage.includes(index), // 标识: 是否已经完成上传
+            progress: chunkStorage && chunkStorage.includes(index) ? 100 : 0,
+            status: chunkStorage && chunkStorage.includes(index) ? 'success' : 'wait' // 上传状态, 用作进度状态显示
           }))
 
           this.$set(filesArr, i, filesArr[i])
@@ -509,14 +517,25 @@ export default {
       console.log('createProgresshandler -> chunk', chunk);
       return (progress) => {
         chunk.progress = parseInt(String(progress.loaded / progress.total) * 100)
-        // this.fileProgress()
+        this.fileProgress()
       }
     },
     // 文件总进度
     fileProgress() {
       const currentFile = this.uploadFiles[fileIndex]
       if (currentFile) {
-        const uploadProgress = currentFile.chunkList
+        const uploadProgress = currentFile.chunkList.map(item => item.size * item.progress)
+          .reduce((acc, cur) => acc + cur)
+        const currentFileProgress = parseInt((uploadProgress / currentFile.size).toFixed(2))
+
+        // 真假进度条处理--处理进度条后移
+        if (!currentFile.fakeUploadProgress) {
+          currentFile.uploadProgress = currentFileProgress
+          this.$set(this.uploadFiles, fileIndex, currentFile)       
+        } else if(currentFileProgress > currentFile.fakeUploadProgress) {
+          currentFile.uploadProgress = currentFileProgress
+          this.$set(this.uploadFiles, fileIndex, currentFile)
+        }
       }
     },
     isAllStatus() {
@@ -563,10 +582,11 @@ export default {
   },
   computed: {
     changeDisabled() {
-      return false
+      return ![Status.wait, Status.done].includes(this.status)
     },
     uploadDisabled() {
-      return !this.uploadFiles.length
+      return !this.uploadFiles.length || 
+        [Status.pause, Status.done, Status.uploading, Status.hash].includes(this.status)
     },
     pauseDisabled() {
       return [Status.wait, Status.hash, Status.pause, Status.done].includes(this.status)
@@ -576,6 +596,24 @@ export default {
     },
     clearDisabled() {
       return !this.uploadFiles.length
+    },
+    fileStatuIcon(status) {
+      return function(status) {
+        let className = ''
+        switch (status) {
+          case 'uploading':
+            className = 'el-icon-loading'
+            break;
+          case 'success':
+          case 'secondPass':
+            className = 'el-icon-circle-check';
+            break;
+          case 'error':
+            className = 'el-icon-circle-close';
+            break;
+        }
+        return className
+      }
     }
   }
 }
@@ -634,8 +672,13 @@ export default {
         }
         .item-status {
           flex: 0 0 10%;
-          text-align: center;
           text-align: left;
+          .el-icon-circle-check {
+            color: #67c23a;
+          }
+          .el-icon-circle-close {
+            color: #f00;
+          }
         }
       }
     }
