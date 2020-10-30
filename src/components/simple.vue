@@ -26,11 +26,11 @@
             @click="handlePause"
             icon="el-icon-video-pause"
           >暂停</el-button>
-          <!-- <el-button 
+          <el-button 
             :disabled="resumeDisabled" 
             @click="handleResume"
             icon="el-icon-video-play"
-          >恢复</el-button> -->
+          >恢复</el-button>
           <el-button 
             :disabled="clearDisabled" 
             @click="clearFiles"
@@ -228,8 +228,9 @@ export default {
         this.handleStart(item)
       })
     },
+    // 格式化files、beforeUpload钩子处理、文件的追加也是通过此函数控制
     handleStart(rawFile) {
-      // 对每个文件进行初始化自定义属性
+      // 初始化部分自定义属性
       rawFile.status = fileStatus.wait.code;
       rawFile.chunkList = [];
       rawFile.uploadProgress = 0;
@@ -361,7 +362,10 @@ export default {
             const index = formInfo.index
 
             instance
-              .post('fileChunk', formData)
+              .post('fileChunk', formData, {
+                onUploadProgress: self.createProgresshandler(chunkData[index]),
+                cancelToken: new CancelToken(c => this.cancels.push(c)),
+              })
               .then(res => {
                 console.log('handler -> res', res)
                 // 更改状态
@@ -462,7 +466,7 @@ export default {
       console.log('createFileChunk -> fileChunkList', fileChunkList)
       return fileChunkList
     },
-    // 生成文件 hash(web-worker)
+    // 生成文件hash (web-worker)
     calculateHash(fileChunkList) {
       console.log('calculateHash -> fileChunkList', fileChunkList)
       return new Promise(resolve => {
@@ -500,6 +504,21 @@ export default {
           })
       })
     },
+    // 切片上传进度
+    createProgresshandler(chunk) {
+      console.log('createProgresshandler -> chunk', chunk);
+      return (progress) => {
+        chunk.progress = parseInt(String(progress.loaded / progress.total) * 100)
+        // this.fileProgress()
+      }
+    },
+    // 文件总进度
+    fileProgress() {
+      const currentFile = this.uploadFiles[fileIndex]
+      if (currentFile) {
+        const uploadProgress = currentFile.chunkList
+      }
+    },
     isAllStatus() {
       const isAllSuccess = this.uploadFiles.every(item => 
         ['success', 'secondPass', 'error'].includes(item.status))
@@ -513,11 +532,23 @@ export default {
     handlePause() {
       this.status = Status.pause
       if (this.uploadFiles.length) {
-        console.log('handlePause -> currentFile')
+        const currentFile = this.uploadFiles[fileIndex]
+        currentFile.status = fileStatus.pause.code
+        // 将当前进度赋值给假进度条
+        currentFile.fakeUploadProgress = currentFile.uploadProgress
+        console.log('handlePause -> currentFile', currentFile)
+      }
+      while (this.cancels.length > 0) {
+        this.cancels.pop()('取消请求')
       }
     },
     // 恢复上传
-
+    handleResume() {
+      this.status = Status.uploading
+      console.log('handleResume -> this.uploadFiles[fileIndex]', this.uploadFiles[fileIndex]);
+      this.uploadFiles[fileIndex].status = fileStatus.resume.code
+      this.handleUpload()
+    },
     // 清空文件
     clearFiles() {
       console.log('清空文件');
@@ -539,6 +570,9 @@ export default {
     },
     pauseDisabled() {
       return [Status.wait, Status.hash, Status.pause, Status.done].includes(this.status)
+    },
+    resumeDisabled() {
+      return ![Status.pause].includes(this.status)
     },
     clearDisabled() {
       return !this.uploadFiles.length
