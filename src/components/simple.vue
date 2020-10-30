@@ -171,6 +171,11 @@ export default {
       type: Number,
       default: 20
     },
+    // 文件超出个数限制时的钩子
+    onExceed: {
+      type: Function,
+      default: () => {}
+    },
     baseUrl: {
       type: String,
       default: ''
@@ -220,6 +225,7 @@ export default {
       fileIndex = 0 // 重置文件下标
       // 判断文件选择的个数
       if (this.limit && files.length > this.limit) {
+        this.onExceed && this.onExceed(files)
         return
       }
 
