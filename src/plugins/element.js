@@ -6,7 +6,9 @@ import {
   CollapseItem,
   Progress,
   Table,
-  TableColumn
+  TableColumn,
+  Notification,
+  Message
 } from 'element-ui'
 
 Vue.use(Button)
@@ -16,3 +18,5 @@ Vue.use(CollapseItem)
 Vue.use(Progress)
 Vue.use(Table)
 Vue.use(TableColumn)
+Vue.prototype.$notify = Notification;
+Vue.prototype.$message = Message;

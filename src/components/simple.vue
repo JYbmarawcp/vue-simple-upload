@@ -3,10 +3,8 @@
     <div class="total-progress">
       <div class="btns">
         <el-button-group>
-          <el-button 
-            :disabled="changeDisabled"
-            icon="el-icon-upload2"
-          >选择文件
+          <el-button :disabled="changeDisabled" icon="el-icon-upload2"
+            >选择文件
             <input
               v-if="!changeDisabled"
               type="file"
@@ -16,26 +14,30 @@
               @change="handleFileChange"
             />
           </el-button>
-          <el-button 
-            :disabled="uploadDisabled" 
+          <el-button
+            :disabled="uploadDisabled"
             @click="handleUpload"
             icon="el-icon-upload"
-          >上传</el-button>
-          <el-button 
-            :disabled="pauseDisabled" 
+            >上传</el-button
+          >
+          <el-button
+            :disabled="pauseDisabled"
             @click="handlePause"
             icon="el-icon-video-pause"
-          >暂停</el-button>
-          <el-button 
-            :disabled="resumeDisabled" 
+            >暂停</el-button
+          >
+          <el-button
+            :disabled="resumeDisabled"
             @click="handleResume"
             icon="el-icon-video-play"
-          >恢复</el-button>
-          <el-button 
-            :disabled="clearDisabled" 
+            >恢复</el-button
+          >
+          <el-button
+            :disabled="clearDisabled"
             @click="clearFiles"
             icon="el-icon-delete"
-          >清空</el-button>
+            >清空</el-button
+          >
         </el-button-group>
         <slot name="header"></slot>
       </div>
@@ -54,7 +56,11 @@
                   大小: {{ $utils.formatByte(item.size) }}
                 </div>
                 <div v-if="item.hashProgress !== 100" class="item-progress">
-                  <span>{{ status === 'wait' ? '准备读取文件' : '正在读取文件'}}：</span>
+                  <span
+                    >{{
+                      status === 'wait' ? '准备读取文件' : '正在读取文件'
+                    }}：</span
+                  >
                   <el-progress :percentage="item.hashProgress" />
                 </div>
                 <div v-else class="item-progress">
@@ -71,7 +77,12 @@
           <div class="item-chunk-box">
             <el-table :data="item.chunkList" border max-height="300">
               <el-table-column prop="index" label="#" align="center" />
-              <el-table-column prop="hash" label="切片md5" align="center" show-overflow-tooltip />
+              <el-table-column
+                prop="hash"
+                label="切片md5"
+                align="center"
+                show-overflow-tooltip
+              />
               <el-table-column label="大小" align="center" width="120">
                 <template v-slot="{ row }">
                   {{ $utils.formatByte(row.size) }}
@@ -85,10 +96,15 @@
 
               <el-table-column label="进度" align="center">
                 <template v-slot="{ row }">
-                  <el-progress v-if="!row.status || row.status === 'wait'" 
-                    :percentage="row.progress" 
+                  <el-progress
+                    v-if="!row.status || row.status === 'wait'"
+                    :percentage="row.progress"
                   />
-                  <el-progress v-else :percentage="row.progress" :status="row.status" />
+                  <el-progress
+                    v-else
+                    :percentage="row.progress"
+                    :status="row.status"
+                  />
                 </template>
               </el-table-column>
             </el-table>
@@ -101,97 +117,75 @@
 </template>
 
 <script>
-import { addChunkStorage, getChunkStorage, clearLocalStorage } from '@/utils/localstorage'
+import { Status, fileStatus } from '@/utils/config'
+import {
+  addChunkStorage,
+  getChunkStorage,
+  clearLocalStorage,
+} from '@/utils/localstorage'
 import { formatByte } from '@/utils/common'
 import axios, { CancelToken } from 'axios'
 
 const instance = axios.create({})
 
-let chunkSize = 10 * 1024 * 1024; // 切片大小
-var fileIndex = 0 // 当前正在被遍历的文件下标
-// 所有文件状态
-const Status = {
-  wait: 'wait',
-  pause: 'pause',
-  uploading: 'uploading',
-  hash: 'hash',
-  error: 'error',
-  done: 'done'
-}
-// 单个文件的状态 对应描述
-const fileStatus = {
-  wait: {
-    code: 'wait',
-    name: '待上传'
-  },
-  uploading: {
-    code: 'uploading',
-    name: '上传中'
-  },
-  success: {
-    code: 'success',
-    name: '成功'
-  },
-  error: {
-    code: 'error',
-    name: '失败'
-  },
-  secondPass: {
-    code: 'secondPass',
-    name: '已秒传'
-  },
-  pause: {
-    code: 'pause',
-    name: '暂停'
-  },
-  resume: {
-    code: 'resume',
-    name: '恢复'
-  }
-}
+let chunkSize = 10 * 1024 * 1024 // 切片大小
+let fileIndex = 0 // 当前正在被遍历的文件下标
 
 export default {
   name: 'SimpleUploaderContainer',
   filters: {
     fileStatus(status) {
       return fileStatus[status].name
-    }
+    },
   },
   props: {
     accept: {
       type: String,
-      default: ''
+      default: '',
     },
     multiple: {
       type: Boolean,
-      default: true
+      default: true,
     },
     // 文件个数
     limit: {
       type: Number,
-      default: 20
+      default: 20,
     },
     // 文件超出个数限制时的钩子
     onExceed: {
       type: Function,
-      default: () => {}
+      default: () => {},
     },
     baseUrl: {
       type: String,
-      default: ''
+      default: '',
+    },
+    headers: {
+      type: Object,
+      default: () => ({}),
+    },
+    // 是否传递cookie
+    withCredentials: {
+      type: Boolean,
+      default: false,
+    },
+    beforeUpload: {
+      type: Function,
+      default: null,
     },
     // 切片大小
     chunkSize: {
       type: Number,
-      default: 10 * 1024 * 1024
+      default: 10 * 1024 * 1024,
     },
-    // 上传文件时携带的参数
-    uploadArguments: {
-      type: Object,
-      default: () => ({})
+    // 上传并发数
+    threads: {
+      type: Number,
+      default: 3,
     },
   },
-  data () {
+  data() {
     return {
       status: Status.wait, // 默认状态
       uploadFiles: [],
@@ -202,8 +196,9 @@ export default {
   },
   created() {
     this.setAxios()
+    this.tempThreads = this.threads
   },
-  destroyed () {
+  destroyed() {
     this.clearFiles()
   },
   methods: {
@@ -212,9 +207,15 @@ export default {
       if (this.baseUrl) {
         instance.defaults.baseURL = this.baseUrl
       }
-
+      for (const i in this.headers) {
+        instance.defaults.headers.common[i] = this.headers[i]
+      }
+      // 跨域也可携带cookie
+      if (this.withCredentials) {
+        instance.defaults.withCredentials = true
+      }
       // 设置切片大小
-      chunkSize = this.chunkSize;
+      chunkSize = this.chunkSize
     },
     handleFileChange(e) {
       const files = e.target.files
@@ -233,20 +234,29 @@ export default {
 
       const postFiles = Array.prototype.slice.call(files)
       console.log('file -> postFiles', postFiles)
-      postFiles.forEach(item => {
+      postFiles.forEach((item) => {
         this.handleStart(item)
       })
     },
     // 格式化files、beforeUpload钩子处理、文件的追加也是通过此函数控制
     handleStart(rawFile) {
       // 初始化部分自定义属性
-      rawFile.status = fileStatus.wait.code;
-      rawFile.chunkList = [];
-      rawFile.uploadProgress = 0;
-      rawFile.fakeUploadProgress = 0; // 假进度条，处理恢复上传后，进度条后移的问题
-      rawFile.hashProgress = 0;
+      rawFile.status = fileStatus.wait.code
+      rawFile.chunkList = []
+      rawFile.hashProgress = 0
+      rawFile.uploadProgress = 0
+      rawFile.fakeUploadProgress = 0 // 假进度条，处理恢复上传后，进度条后移的问题
 
-      this.uploadFiles.push(rawFile)
+      if (this.beforeUpload) {
+        const before = this.beforeUpload(rawFile)
+        if (before && before.then) {
+          before.then((res) => {
+            this.uploadFiles.push(rawFile)
+          })
+        }
+      } else {
+        this.uploadFiles.push(rawFile)
+      }
     },
     async handleUpload() {
       console.log('handleUpload -> this.uploadFiles', this.uploadFiles)
@@ -255,11 +265,11 @@ export default {
       const filesArr = this.uploadFiles
 
       // 对单个文件逐一上传
-      for(let i = 0; i < filesArr.length; i++) {
+      for (let i = 0; i < filesArr.length; i++) {
         fileIndex = i
         if (['secondPass', 'success', 'error'].includes(filesArr[i].status)) {
           console.log('跳过已经上传成功或已秒传的或失败的file')
-          continue;
+          continue
         }
 
         // 文件切片
@@ -273,7 +283,7 @@ export default {
 
           // 若清空或者状态为等待, 则跳出循环
           if (this.status === Status.wait) {
-            console.log('若清空或者状态为等待，则跳出循环');
+            console.log('若清空或者状态为等待，则跳出循环')
             break
           }
 
@@ -282,10 +292,13 @@ export default {
 
         this.status = Status.uploading
 
-        // 检验重复
-        const verifyRes = await this.verifyUpload(filesArr[i].name, filesArr[i].hash)
+        // 检验文件重复
+        const verifyRes = await this.verifyUpload(
+          filesArr[i].name,
+          filesArr[i].hash
+        )
         if (verifyRes.data.presence) {
-          console.log('进入1', verifyRes);
+          console.log('文件重复', verifyRes)
           filesArr[i].status = fileStatus.secondPass.code
           filesArr[i].uploadProgress = 100
           // 判断是否都已经上传
@@ -296,7 +309,7 @@ export default {
 
           const chunkStorage = getChunkStorage(filesArr[i].hash)
           filesArr[i].fileHash = filesArr[i].hash // 文件的hash, 合并时使用
-          // 自定义chunkList
+          // 自定义chunkList(切片)
           filesArr[i].chunkList = fileChunkList.map(({ file }, index) => ({
             fileHash: filesArr[i].hash,
             fileName: filesArr[i].name,
@@ -306,7 +319,8 @@ export default {
             size: file.size,
             uploaded: chunkStorage && chunkStorage.includes(index), // 标识: 是否已经完成上传
             progress: chunkStorage && chunkStorage.includes(index) ? 100 : 0,
-            status: chunkStorage && chunkStorage.includes(index) ? 'success' : 'wait' // 上传状态, 用作进度状态显示
+            status:
+              chunkStorage && chunkStorage.includes(index) ? 'success' : 'wait', // 上传状态, 用作进度状态显示
           }))
 
           this.$set(filesArr, i, filesArr[i])
@@ -320,15 +334,16 @@ export default {
     async uploadChunks(data) {
       console.log('uploadChunks -> data', data)
       let chunkData = data.chunkList
-      const requestDataList = chunkData.filter(({ uploaded }) => !uploaded)
-        .map(({ fileHash, chunk, fileName, index}) => {
+      const requestDataList = chunkData
+        .filter(({ uploaded }) => !uploaded)
+        .map(({ fileHash, chunk, fileName, index }) => {
           const formData = new FormData()
           formData.append('md5', fileHash)
           formData.append('file', chunk)
           formData.append('chunkId', index) // 文件名使用切片的下标
           return { formData, index, fileName }
         })
-      
+
       console.log('uploadChunks -> requestDataList', requestDataList)
 
       // 并发上传
@@ -343,7 +358,7 @@ export default {
       }
 
       //合并切片
-      const isUpload = chunkData.some(item => item.uploading === false)
+      const isUpload = chunkData.some((item) => item.uploading === false)
       if (isUpload) {
         alert('存在失败的切片')
       } else {
@@ -378,9 +393,9 @@ export default {
             instance
               .post('fileChunk', formData, {
                 onUploadProgress: self.createProgresshandler(chunkData[index]),
-                cancelToken: new CancelToken(c => this.cancels.push(c)),
+                cancelToken: new CancelToken((c) => this.cancels.push(c)),
               })
-              .then(res => {
+              .then((res) => {
                 console.log('handler -> res', res)
                 // 更改状态
                 chunkData[index].uploaded = true
@@ -410,14 +425,21 @@ export default {
 
                 // 重试3次
                 if (retryArr[index] >= chunkRetry) {
-                  console.warn('重试失败 ---> handler -> retryArr', retryArr, chunkData[index].hash);
-                  return reject('重试失败', retryArr);
+                  console.warn(
+                    '重试失败 ---> handler -> retryArr',
+                    retryArr,
+                    chunkData[index].hash
+                  )
+                  return reject('重试失败', retryArr)
                 }
 
-                console.log('handler -> retryArr[finished]', `${chunkData[index].hash}--进行第${retryArr[index]}'次重试'`)
+                console.log(
+                  'handler -> retryArr[finished]',
+                  `${chunkData[index].hash}--进行第${retryArr[index]}'次重试'`
+                )
                 console.log(retryArr)
 
-                this.tempThreads++; // 释放当前占用的通道 ？？？
+                this.tempThreads++ // 释放当前占用的通道 ？？？
 
                 // 将失败的重新加入队列
                 froms.push(formInfo)
@@ -441,39 +463,40 @@ export default {
         md5: data.fileHash,
         fileName: data.name,
         fileChunkNum: data.chunkList.length,
-        ...this.uploadArguments
       }
 
-      instance.post('fileChunk/merge', obj, {
-        timeout: 0
-      }).then(res => {
-        // 清除storage
-        if (res.data.code === 200) {
-          data.status = fileStatus.success.code
-          console.log('mergeRequest -> data', data)
-          console.log('上传的chunk', localStorage.getItem(data.fileHash))
-          clearLocalStorage(data.fileHash)
-          // 判断是否所有都成功上传
-          this.isAllStatus()
-
-        } else {
-          // 文件块数量不对, 清楚缓存
-          clearLocalStorage(data.fileHash)
-          data.status = fileStatus.error.code
-          this.status = Status.wait
-        }
-      }).catch(error => {
-        console.log('mergeRequest -> err', error);
-        data.status = fileStatus.error
-      })
+      instance
+        .post('fileChunk/merge', obj, {
+          timeout: 0,
+        })
+        .then((res) => {
+          // 清除storage
+          if (res.data.code === 200) {
+            data.status = fileStatus.success.code
+            console.log('mergeRequest -> data', data)
+            console.log('上传的chunk', localStorage.getItem(data.fileHash))
+            clearLocalStorage(data.fileHash)
+            // 判断是否所有都成功上传
+            this.isAllStatus()
+          } else {
+            // 文件块数量不对, 清楚缓存
+            clearLocalStorage(data.fileHash)
+            data.status = fileStatus.error.code
+            this.status = Status.wait
+          }
+        })
+        .catch((error) => {
+          console.log('mergeRequest -> err', error)
+          data.status = fileStatus.error
+        })
     },
     // 创建文件切片
     createFileChunk(file, size = chunkSize) {
       const fileChunkList = []
       let count = 0
-      while(count < file.size) {
+      while (count < file.size) {
         fileChunkList.push({
-          file: file.slice(count, count + size)
+          file: file.slice(count, count + size),
         })
         count += size
       }
@@ -483,13 +506,15 @@ export default {
     // 生成文件hash (web-worker)
     calculateHash(fileChunkList) {
       console.log('calculateHash -> fileChunkList', fileChunkList)
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         this.worker = new Worker('./hash-worker.js')
         this.worker.postMessage({ fileChunkList })
-        this.worker.onmessage = e => {
+        this.worker.onmessage = (e) => {
           const { percentage, hash } = e.data
           if (this.uploadFiles[fileIndex]) {
-            this.uploadFiles[fileIndex].hashProgress = Number(percentage.toFixed(0))
+            this.uploadFiles[fileIndex].hashProgress = Number(
+              percentage.toFixed(0)
+            )
             this.$set(this.uploadFiles, fileIndex, this.uploadFiles[fileIndex])
           }
           if (hash) {
@@ -500,29 +525,30 @@ export default {
     },
     // 文件上传之前的校验: 校验文件是否已存在
     verifyUpload(fileName, fileHash) {
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         const obj = {
           md5: fileHash,
           fileName,
-          ...this.uploadArguments
         }
         //
         instance
           .get('fileChunk/presence', { params: obj })
-          .then(res => {
+          .then((res) => {
             console.log('verifyUpload -> res', res)
             resolve(res.data)
           })
-          .catch(err => {
+          .catch((err) => {
             console.log('verifyUpload -> err', err)
           })
       })
     },
     // 切片上传进度
     createProgresshandler(chunk) {
-      console.log('createProgresshandler -> chunk', chunk);
+      console.log('createProgresshandler -> chunk', chunk)
       return (progress) => {
-        chunk.progress = parseInt(String(progress.loaded / progress.total) * 100)
+        chunk.progress = parseInt(
+          String(progress.loaded / progress.total) * 100
+        )
         this.fileProgress()
       }
     },
@@ -530,23 +556,27 @@ export default {
     fileProgress() {
       const currentFile = this.uploadFiles[fileIndex]
       if (currentFile) {
-        const uploadProgress = currentFile.chunkList.map(item => item.size * item.progress)
+        const uploadProgress = currentFile.chunkList
+          .map((item) => item.size * item.progress)
           .reduce((acc, cur) => acc + cur)
-        const currentFileProgress = parseInt((uploadProgress / currentFile.size).toFixed(2))
+        const currentFileProgress = parseInt(
+          (uploadProgress / currentFile.size).toFixed(2)
+        )
 
         // 真假进度条处理--处理进度条后移
         if (!currentFile.fakeUploadProgress) {
           currentFile.uploadProgress = currentFileProgress
-          this.$set(this.uploadFiles, fileIndex, currentFile)       
-        } else if(currentFileProgress > currentFile.fakeUploadProgress) {
+          this.$set(this.uploadFiles, fileIndex, currentFile)
+        } else if (currentFileProgress > currentFile.fakeUploadProgress) {
           currentFile.uploadProgress = currentFileProgress
           this.$set(this.uploadFiles, fileIndex, currentFile)
         }
       }
     },
     isAllStatus() {
-      const isAllSuccess = this.uploadFiles.every(item => 
-        ['success', 'secondPass', 'error'].includes(item.status))
+      const isAllSuccess = this.uploadFiles.every((item) =>
+        ['success', 'secondPass', 'error'].includes(item.status)
+      )
       console.log('mergeRequest -> isAllSuccess', isAllSuccess)
       if (isAllSuccess) {
         this.status = Status.done
@@ -570,13 +600,16 @@ export default {
     // 恢复上传
     handleResume() {
       this.status = Status.uploading
-      console.log('handleResume -> this.uploadFiles[fileIndex]', this.uploadFiles[fileIndex]);
+      console.log(
+        'handleResume -> this.uploadFiles[fileIndex]',
+        this.uploadFiles[fileIndex]
+      )
       this.uploadFiles[fileIndex].status = fileStatus.resume.code
       this.handleUpload()
     },
     // 清空文件
     clearFiles() {
-      console.log('清空文件');
+      console.log('清空文件')
       fileIndex = 0
       this.handlePause()
 
@@ -584,18 +617,24 @@ export default {
       this.status = Status.wait
       // 重置data所有数据
       Object.assign(this.$data, this.$options.data())
-    }
+    },
   },
   computed: {
     changeDisabled() {
       return ![Status.wait, Status.done].includes(this.status)
     },
     uploadDisabled() {
-      return !this.uploadFiles.length || 
-        [Status.pause, Status.done, Status.uploading, Status.hash].includes(this.status)
+      return (
+        !this.uploadFiles.length ||
+        [Status.pause, Status.done, Status.uploading, Status.hash].includes(
+          this.status
+        )
+      )
     },
     pauseDisabled() {
-      return [Status.wait, Status.hash, Status.pause, Status.done].includes(this.status)
+      return [Status.wait, Status.hash, Status.pause, Status.done].includes(
+        this.status
+      )
     },
     resumeDisabled() {
       return ![Status.pause].includes(this.status)
@@ -609,19 +648,19 @@ export default {
         switch (status) {
           case 'uploading':
             className = 'el-icon-loading'
-            break;
+            break
           case 'success':
           case 'secondPass':
-            className = 'el-icon-circle-check';
-            break;
+            className = 'el-icon-circle-check'
+            break
           case 'error':
-            className = 'el-icon-circle-close';
-            break;
+            className = 'el-icon-circle-close'
+            break
         }
         return className
       }
-    }
-  }
+    },
+  },
 }
 </script>
 
